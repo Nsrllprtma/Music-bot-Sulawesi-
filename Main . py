@@ -1,0 +1,53 @@
+import os
+from pyrogram import Client, filters
+from yt_dlp import YoutubeDL
+
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+app = Client("music_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+@app.on_message(filters.command("start"))
+async def start(client, message):
+    await message.reply("Halo! Kirim /play <judul lagu> untuk memutar musik.")
+
+@app.on_message(filters.command("play"))
+async def play(client, message):
+    query = " ".join(message.command[1:])
+    if not query:
+        await message.reply("Contoh: /play lathi")
+        return
+
+    msg = await message.reply(f"Mencari lagu `{query}`...")
+
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "noplaylist": True,
+        "quiet": True,
+        "outtmpl": "downloads/%(title)s.%(ext)s",
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        }],
+    }
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch:{query}", download=True)['entries'][0]
+            file_path = ydl.prepare_filename(info).replace(".webm", ".mp3")
+        
+        await msg.edit("Mengirim lagu...")
+        await client.send_audio(
+            chat_id=message.chat.id,
+            audio=file_path,
+            title=info.get("title"),
+            performer=info.get("uploader"),
+            duration=info.get("duration"),
+        )
+        os.remove(file_path)
+    except Exception as e:
+        await msg.edit(f"Gagal: {str(e)}")
+
+app.run()
